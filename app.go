@@ -61,13 +61,35 @@ func (a *app) dismiss() error {
 	).Run()
 }
 
-func (a *app) invoke(name string) error {
-	return exec.Command(
+func (a *app) invoke(ctx context.Context, name string) error {
+	err := exec.Command(
 		"makoctl",
 		"invoke",
 		"-n", fmt.Sprintf("%d", a.id),
 		name,
 	).Run()
+	if err != nil {
+		return err
+	}
+
+	if a.notificationStillExists(ctx) {
+		return a.dismiss()
+	}
+
+	return nil
+}
+
+func (a *app) notificationStillExists(ctx context.Context) bool {
+	notifications, err := a.getNotifications(ctx)
+	if err != nil {
+		return false
+	}
+
+	if _, err = notifications.GetByID(a.id); err != nil {
+		return false
+	}
+
+	return true
 }
 
 func (a *app) getActionWithMenu(actions map[string]string) (string, error) {
@@ -131,7 +153,7 @@ func (a *app) run(ctx context.Context) error {
 		return a.dismiss()
 	case 1:
 		for name := range actions {
-			return a.invoke(name)
+			return a.invoke(ctx, name)
 		}
 	default:
 		action, err := a.getActionWithMenu(actions)
@@ -139,7 +161,7 @@ func (a *app) run(ctx context.Context) error {
 			return err
 		}
 
-		return a.invoke(action)
+		return a.invoke(ctx, action)
 	}
 
 	return nil
